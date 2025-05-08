@@ -1,0 +1,269 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Modelo de Usuario
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  firstName     String
+  lastName      String
+  cedula        String    @unique
+  birthDate     DateTime?
+  gender        String?
+  phone         String?
+  address       String?
+  role          String    // estudiante, profesor, administrativo
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relaciones
+  student       Student?
+  professor     Professor?
+  admin         Admin?
+  aspirant      Aspirant?
+}
+
+// Modelo de Estudiante
+model Student {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentId     String    @unique // Código de estudiante
+  careerId      String
+  career        Career    @relation(fields: [careerId], references: [id])
+  status        String    // activo, inactivo, egresado
+  admissionDate DateTime
+  
+  // Relaciones
+  enrollments   Enrollment[]
+  grades        Grade[]
+  documents     Document[]
+}
+
+// Modelo de Profesor
+model Professor {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  professorId   String    @unique // Código de profesor
+  departmentId  String
+  department    Department @relation(fields: [departmentId], references: [id])
+  education     String?
+  specialization String?
+  contractType  String    // tiempo_completo, tiempo_parcial, por_hora
+  status        String    // activo, inactivo, sabático, permiso
+  hireDate      DateTime
+  
+  // Relaciones
+  sections      Section[]
+  materials     ClassMaterial[]
+}
+
+// Modelo de Administrativo
+model Admin {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adminId       String    @unique // Código administrativo
+  position      String
+  department    String
+  permissions   String?   // JSON con permisos
+}
+
+// Modelo de Aspirante
+model Aspirant {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aspirantId    String    @unique // Código de aspirante
+  desiredCareerId String?
+  desiredCareer Career?   @relation(fields: [desiredCareerId], references: [id])
+  status        String    // pendiente, aprobado, rechazado
+  applicationDate DateTime @default(now())
+  highSchool    String?
+  graduationYear Int?
+  averageGrade  Float?
+  interviewDate DateTime?
+  interviewNotes String?
+  documents     String?   // JSON con documentos presentados
+}
+
+// Modelo de Carrera
+model Career {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  name          String
+  description   String?
+  departmentId  String
+  department    Department @relation(fields: [departmentId], references: [id])
+  credits       Int
+  duration      Int       // Duración en semestres
+  isActive      Boolean   @default(true)
+  
+  // Relaciones
+  students      Student[]
+  subjects      Subject[]
+  aspirants     Aspirant[]
+}
+
+// Modelo de Departamento
+model Department {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  name          String
+  description   String?
+  
+  // Relaciones
+  careers       Career[]
+  professors    Professor[]
+  subjects      Subject[]
+}
+
+// Modelo de Materia
+model Subject {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  name          String
+  description   String?
+  credits       Int
+  departmentId  String
+  department    Department @relation(fields: [departmentId], references: [id])
+  careerId      String
+  career        Career    @relation(fields: [careerId], references: [id])
+  prerequisites String?   // JSON con códigos de materias prerequisito
+  isElective    Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  
+  // Relaciones
+  sections      Section[]
+  materials     ClassMaterial[]
+}
+
+// Modelo de Sección
+model Section {
+  id            String    @id @default(cuid())
+  code          String    @unique // SEC-001
+  subjectId     String
+  subject       Subject   @relation(fields: [subjectId], references: [id])
+  professorId   String
+  professor     Professor @relation(fields: [professorId], references: [id])
+  periodId      String
+  period        Period    @relation(fields: [periodId], references: [id])
+  schedule      String
+  classroom     String
+  capacity      Int
+  
+  // Relaciones
+  enrollments   Enrollment[]
+  grades        Grade[]
+}
+
+// Modelo de Período Académico
+model Period {
+  id                String    @id @default(cuid())
+  code              String    @unique // 2023-T1
+  name              String
+  year              Int
+  trimester         String
+  startDate         DateTime
+  endDate           DateTime
+  enrollmentStartDate DateTime
+  enrollmentEndDate DateTime
+  isActive          Boolean   @default(false)
+  
+  // Relaciones
+  sections          Section[]
+  enrollments       Enrollment[]
+  trajectoryFirst   Trajectory[] @relation("FirstPeriod")
+  trajectorySecond  Trajectory[] @relation("SecondPeriod")
+  trajectoryThird   Trajectory[] @relation("ThirdPeriod")
+}
+
+// Modelo de Trayecto Académico
+model Trajectory {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  name          String
+  academicYear  String
+  description   String?
+  firstPeriodId String
+  firstPeriod   Period    @relation("FirstPeriod", fields: [firstPeriodId], references: [id])
+  secondPeriodId String
+  secondPeriod  Period    @relation("SecondPeriod", fields: [secondPeriodId], references: [id])
+  thirdPeriodId String
+  thirdPeriod   Period    @relation("ThirdPeriod", fields: [thirdPeriodId], references: [id])
+  isActive      Boolean   @default(false)
+}
+
+// Modelo de Inscripción
+model Enrollment {
+  id            String    @id @default(cuid())
+  studentId     String
+  student       Student   @relation(fields: [studentId], references: [id])
+  sectionId     String
+  section       Section   @relation(fields: [sectionId], references: [id])
+  periodId      String
+  period        Period    @relation(fields: [periodId], references: [id])
+  enrollmentDate DateTime @default(now())
+  status        String    // activa, retirada, finalizada
+  
+  // Relaciones
+  grades        Grade[]
+}
+
+// Modelo de Calificación
+model Grade {
+  id            String    @id @default(cuid())
+  studentId     String
+  student       Student   @relation(fields: [studentId], references: [id])
+  sectionId     String
+  section       Section   @relation(fields: [sectionId], references: [id])
+  enrollmentId  String
+  enrollment    Enrollment @relation(fields: [enrollmentId], references: [id])
+  eval1         Float?
+  eval2         Float?
+  eval3         Float?
+  finalGrade    Float?
+  observations  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// Modelo de Documento
+model Document {
+  id            String    @id @default(cuid())
+  studentId     String
+  student       Student   @relation(fields: [studentId], references: [id])
+  type          String    // constancia, notas, recomendacion, etc.
+  title         String
+  content       String    // Contenido del documento (puede ser HTML o texto)
+  format        String    // pdf, doc, etc.
+  createdAt     DateTime  @default(now())
+  createdBy     String?   // ID del usuario que creó el documento
+  status        String    // borrador, emitido, anulado
+}
+
+// Modelo de Material de Clase
+model ClassMaterial {
+  id            String    @id @default(cuid())
+  title         String
+  description   String?
+  fileUrl       String?
+  fileType      String?   // pdf, doc, ppt, etc.
+  professorId   String
+  professor     Professor @relation(fields: [professorId], references: [id])
+  subjectId     String
+  subject       Subject   @relation(fields: [subjectId], references: [id])
+  uploadDate    DateTime  @default(now())
+  isPublic      Boolean   @default(true)
+}
